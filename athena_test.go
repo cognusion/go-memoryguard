@@ -2,6 +2,7 @@ package memoryguard
 
 import (
 	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func Test_MemoryGuardOnUsPSSRapid(t *testing.T) {
 		defer mg.Cancel()
 
 		Convey("and we spam the PSS() function, we don't get killed, and a PSS is returned", func() {
-			for c := 0; c < 1000; c++ {
+			for range 1000 {
 				So(mg.PSS(), ShouldBeGreaterThan, 0)
 			}
 		})
@@ -110,7 +111,7 @@ func Test_MemoryGuardCancelSpamPSS(t *testing.T) {
 		defer mg.Cancel()
 
 		Convey("and we spam the cancel function, we don't get killed or blocked", func() {
-			for c := 0; c < 1000; c++ {
+			for range 1000 {
 				mg.Cancel()
 			}
 			So(true, ShouldBeTrue)
@@ -132,5 +133,29 @@ func Test_MemoryGuardKillPSS(t *testing.T) {
 			<-mg.KillChan // wait for the kill
 			So(true, ShouldBeTrue)
 		})
+	})
+}
+
+func Test_MemoryGuardMaxPSS(t *testing.T) {
+	t.Skip("Skipping, as this runs and external command without consent, that could chew up memory if MG doesn't work.\n")
+
+	Convey("When an external command runs", t, func() {
+		cmd := exec.Command("tests/mem.sh")
+		err := cmd.Start()
+		So(err, ShouldBeNil)
+		mg := New(cmd.Process)
+		mg.Interval = time.Second
+		mg.Limit(1024 * 1024) // 1MB
+
+		Convey("and memory grows above mss, it should be killed promptly.", func() {
+			defer mg.Cancel()
+			start := time.Now()
+			err := cmd.Wait()
+			<-mg.KillChan // wait for the kill
+			stop := time.Now()
+			So(err, ShouldNotBeNil)
+			So(stop.Sub(start), ShouldBeLessThanOrEqualTo, 3*time.Second)
+		})
+
 	})
 }

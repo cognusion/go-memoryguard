@@ -90,7 +90,10 @@ func (m *MemoryGuard) Cancel() {
 func (m *MemoryGuard) Limit(max int64) {
 
 	go func() {
-		var name string
+		var (
+			name   string
+			errors int
+		)
 		if m.Name != "" {
 			name = m.Name
 		} else {
@@ -103,7 +106,8 @@ func (m *MemoryGuard) Limit(max int64) {
 			case <-m.cancelled:
 				m.DebugOut.Printf("[%s] MemoryGuard Cancelled!\n", name)
 				return
-			default:
+			case <-time.After(m.Interval):
+				// Go for it
 			}
 
 			var (
@@ -113,10 +117,11 @@ func (m *MemoryGuard) Limit(max int64) {
 
 			xss, err = getPss(m.proc.Pid)
 			if err != nil {
-				m.ErrOut.Printf("[%s] MemoryGuard getPss Error: %s\n", name, err)
-				time.Sleep(m.Interval)
+				errors++
+				m.ErrOut.Printf("[%s] MemoryGuard getPss Error: %s (%d)\n", name, err, errors)
 				continue
 			} else {
+				errors = 0 //reset
 				atomic.StoreInt64(&m.lastPss, xss)
 			}
 
@@ -133,10 +138,8 @@ func (m *MemoryGuard) Limit(max int64) {
 			} else if time.Since(since) >= m.statsFrequency {
 				// Belch out the stats every so often
 				since = time.Now()
-				m.DebugOut.Printf("[%s] MemoryGuard: %s Limit %s\n", name, humanity.ByteFormat(xss), humanity.ByteFormat(max))
+				m.DebugOut.Printf("[%s] MemoryGuard: %s Limit %s Consecutive errors: %d\n", name, humanity.ByteFormat(xss), humanity.ByteFormat(max), errors)
 			}
-
-			time.Sleep(m.Interval)
 		}
 	}()
 }
