@@ -85,8 +85,8 @@ func (m *MemoryGuard) Cancel() {
 	}
 }
 
-// Limit takes the max usage (in Bytes) for the process.
-// and acts on the PSS of the process uness UseRSS is true
+// Limit takes the max usage (in Bytes) for the process
+// and acts on the PSS.
 func (m *MemoryGuard) Limit(max int64) {
 
 	go func() {

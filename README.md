@@ -96,12 +96,12 @@ MemoryGuard will be non-functional
 
 
 
-### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2464:2502#L90)
+### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2428:2466#L90)
 ``` go
 func (m *MemoryGuard) Limit(max int64)
 ```
-Limit takes the max usage (in Bytes) for the process.
-and acts on the PSS of the process uness UseRSS is true
+Limit takes the max usage (in Bytes) for the process
+and acts on the PSS.
 
 
 
