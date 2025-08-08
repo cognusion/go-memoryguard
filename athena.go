@@ -31,8 +31,9 @@ type MemoryGuard struct {
 
 	cancelled      chan bool
 	nokill         bool // true if the process should not be killed in overmemory cases
+	running        atomic.Bool
 	proc           *os.Process
-	lastPss        int64
+	lastPss        atomic.Int64
 	statsFrequency time.Duration
 }
 
@@ -64,7 +65,7 @@ func (m *MemoryGuard) StatsFrequency(freq time.Duration) {
 // PSS returns the last known PSS value for the watched process,
 // or the current value, if there was no last value
 func (m *MemoryGuard) PSS() int64 {
-	if lp := atomic.LoadInt64(&m.lastPss); lp > 0 {
+	if lp := m.lastPss.Load(); lp > 0 {
 		return lp
 	}
 	pss, err := getPss(m.proc.Pid)
@@ -74,8 +75,8 @@ func (m *MemoryGuard) PSS() int64 {
 	return pss
 }
 
-// Cancel stops any Limit() operations. After calling Cancel this
-// MemoryGuard will be non-functional
+// Cancel stops any Limit() operations.
+// After calling Cancel this MemoryGuard will be non-functional
 func (m *MemoryGuard) Cancel() {
 	select {
 	case m.cancelled <- true:
@@ -85,9 +86,13 @@ func (m *MemoryGuard) Cancel() {
 	}
 }
 
-// Limit takes the max usage (in Bytes) for the process
-// and acts on the PSS.
+// Limit takes the max usage (in Bytes) for the process and acts on the PSS. Call only once.
 func (m *MemoryGuard) Limit(max int64) {
+	if m.running.Load() {
+		// *blinks*
+		return
+	}
+	m.running.Store(true)
 
 	go func() {
 		var (
@@ -122,7 +127,7 @@ func (m *MemoryGuard) Limit(max int64) {
 				continue
 			} else {
 				errors = 0 //reset
-				atomic.StoreInt64(&m.lastPss, xss)
+				m.lastPss.Store(xss)
 			}
 
 			if xss > max {

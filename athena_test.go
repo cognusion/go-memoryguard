@@ -97,6 +97,10 @@ func Test_MemoryGuardGetPssBadPid(t *testing.T) {
 		mg.Limit(400 * 1024 * 1024) // we won't actually hit this, right?
 		defer mg.Cancel()
 
+		// Pause so the limiter can run a cycle or two on the bad PID, possibly
+		// dying.
+		time.Sleep(2 * time.Second)
+
 		Convey("and we have a bad pid, we don't get killed, and a PSS of 0 is returned", func() {
 			So(mg.PSS(), ShouldEqual, 0)
 		})

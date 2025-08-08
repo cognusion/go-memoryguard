@@ -35,7 +35,7 @@ new Limits estabilished.
 
 
 
-## <a name="MemoryGuard">type</a> [MemoryGuard](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=423:1024#L20)
+## <a name="MemoryGuard">type</a> [MemoryGuard](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=423:1059#L20)
 ``` go
 type MemoryGuard struct {
     // Name is a name to use in lieu of PID for messaging
@@ -76,7 +76,7 @@ mg.Cancel()
 
 
 
-### <a name="New">func</a> [New](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1096:1138#L40)
+### <a name="New">func</a> [New](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1131:1173#L41)
 ``` go
 func New(Process *os.Process) *MemoryGuard
 ```
@@ -86,27 +86,26 @@ New takes an os.Process and returns a MemoryGuard for that process
 
 
 
-### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2223:2253#L79)
+### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2246:2276#L80)
 ``` go
 func (m *MemoryGuard) Cancel()
 ```
-Cancel stops any Limit() operations. After calling Cancel this
-MemoryGuard will be non-functional
+Cancel stops any Limit() operations.
+After calling Cancel this MemoryGuard will be non-functional
 
 
 
 
-### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2428:2466#L90)
+### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2464:2502#L90)
 ``` go
 func (m *MemoryGuard) Limit(max int64)
 ```
-Limit takes the max usage (in Bytes) for the process
-and acts on the PSS.
+Limit takes the max usage (in Bytes) for the process and acts on the PSS. Call only once.
 
 
 
 
-### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1941:1974#L66)
+### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1976:2009#L67)
 ``` go
 func (m *MemoryGuard) PSS() int64
 ```
@@ -116,7 +115,7 @@ or the current value, if there was no last value
 
 
 
-### <a name="MemoryGuard.SetNoKill">func</a> (\*MemoryGuard) [SetNoKill](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1555:1588#L54)
+### <a name="MemoryGuard.SetNoKill">func</a> (\*MemoryGuard) [SetNoKill](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1590:1623#L55)
 ``` go
 func (m *MemoryGuard) SetNoKill()
 ```
@@ -126,7 +125,7 @@ process if it exceeds the specified limit.
 
 
 
-### <a name="MemoryGuard.StatsFrequency">func</a> (\*MemoryGuard) [StatsFrequency](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1737:1793#L60)
+### <a name="MemoryGuard.StatsFrequency">func</a> (\*MemoryGuard) [StatsFrequency](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1772:1828#L61)
 ``` go
 func (m *MemoryGuard) StatsFrequency(freq time.Duration)
 ```
