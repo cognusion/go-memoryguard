@@ -9,8 +9,7 @@
 
 ## <a name="pkg-overview">Overview</a>
 Package memoryguard is a system to track the PSS memory usage of an os.Process
-and kill it if the usage exceeds the stated Limit. Limits may be cancelled and
-new Limits estabilished.
+and kill it if the usage exceeds the stated Limit.
 
 
 
@@ -19,13 +18,13 @@ new Limits estabilished.
 * [type MemoryGuard](#MemoryGuard)
   * [func New(Process *os.Process) *MemoryGuard](#New)
   * [func (m *MemoryGuard) Cancel()](#MemoryGuard.Cancel)
-  * [func (m *MemoryGuard) Limit(max int64)](#MemoryGuard.Limit)
+  * [func (m *MemoryGuard) CancelWait()](#MemoryGuard.CancelWait)
+  * [func (m *MemoryGuard) Limit(max int64) error](#MemoryGuard.Limit)
   * [func (m *MemoryGuard) PSS() int64](#MemoryGuard.PSS)
-  * [func (m *MemoryGuard) SetNoKill()](#MemoryGuard.SetNoKill)
-  * [func (m *MemoryGuard) StatsFrequency(freq time.Duration)](#MemoryGuard.StatsFrequency)
 
 #### <a name="pkg-examples">Examples</a>
 * [MemoryGuard](#example-memoryguard)
+* [MemoryGuard.CancelWait](#example-memoryguard_cancelwait)
 
 #### <a name="pkg-files">Package files</a>
 [athena.go](https://github.com/cognusion/go-memoryguard/tree/master/athena.go)
@@ -35,7 +34,7 @@ new Limits estabilished.
 
 
 
-## <a name="MemoryGuard">type</a> [MemoryGuard](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=423:1059#L20)
+## <a name="MemoryGuard">type</a> [MemoryGuard](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=522:1364#L23)
 ``` go
 type MemoryGuard struct {
     // Name is a name to use in lieu of PID for messaging
@@ -48,11 +47,15 @@ type MemoryGuard struct {
     ErrOut *log.Logger
     // KillChan will be closed if/when the process is killed
     KillChan chan struct{}
+    // StatsFrequency updates the internal frequency to which statistics are emitted to the debug logger. Default is 1 minute.
+    StatsFrequency time.Duration
     // contains filtered or unexported fields
 }
 
 ```
-MemoryGuard is our encapsulating mechanation, and should only be acquired via a New helper
+MemoryGuard is our encapsulating mechanation, and should only be acquired via a New helper.
+Member functions are goro-safe, but all struct attributes should be set immediatelyish after New(),
+and before Limit() is called.
 
 
 
@@ -67,16 +70,17 @@ mg.Limit(512 * 1024 * 1024) // Set the HWM memory limit. You can change this at 
 
 // Do stuff that is memory-hungry
 
-// Stop guarding. After this, if you want to guard the process,
-// you need to NewMemoryGuard() again
+// Stop guarding. After this, if you want to guard the process again,
+// Make a New() guard.
 mg.Cancel()
+// Cancel returns immediately, goros will end eventually.
 ```
 
 
 
 
 
-### <a name="New">func</a> [New](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1131:1173#L41)
+### <a name="New">func</a> [New](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1436:1478#L47)
 ``` go
 func New(Process *os.Process) *MemoryGuard
 ```
@@ -86,51 +90,59 @@ New takes an os.Process and returns a MemoryGuard for that process
 
 
 
-### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2246:2276#L80)
+### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2244:2274#L77)
 ``` go
 func (m *MemoryGuard) Cancel()
 ```
-Cancel stops any Limit() operations.
+Cancel signals a Limit() operation to stop, returning immediately.
 After calling Cancel this MemoryGuard will be non-functional
 
 
 
 
-### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2464:2502#L90)
+### <a name="MemoryGuard.CancelWait">func</a> (\*MemoryGuard) [CancelWait](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2526:2560#L88)
 ``` go
-func (m *MemoryGuard) Limit(max int64)
+func (m *MemoryGuard) CancelWait()
 ```
-Limit takes the max usage (in Bytes) for the process and acts on the PSS. Call only once.
+CancelWait signals a Limit() operation to stop, and waits to return until it is done.
+After calling CancelWait this MemoryGuard will be non-functional
+
+
+##### Example MemoryGuard_CancelWait:
+``` go
+// Get a handle on our process
+us, _ := os.FindProcess(os.Getpid())
+
+// Create a new MemoryGuard around the process
+mg := New(us)
+mg.Limit(512 * 1024 * 1024) // Set the HWM memory limit. You can change this at any time
+
+// Do stuff that is memory-hungry
+
+// Stop guarding. After this, if you want to guard the process again,
+// Make a New() guard.
+mg.CancelWait()
+// CancelWait pauses until the goros are all done.
+```
+
+
+
+### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2957:3001#L108)
+``` go
+func (m *MemoryGuard) Limit(max int64) error
+```
+Limit takes the max usage (in Bytes) for the process and acts on the PSS.
+Returns an error if Limit was called previously, or is called with a zero or negative value.
 
 
 
 
-### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1976:2009#L67)
+### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1944:1977#L64)
 ``` go
 func (m *MemoryGuard) PSS() int64
 ```
 PSS returns the last known PSS value for the watched process,
 or the current value, if there was no last value
-
-
-
-
-### <a name="MemoryGuard.SetNoKill">func</a> (\*MemoryGuard) [SetNoKill](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1590:1623#L55)
-``` go
-func (m *MemoryGuard) SetNoKill()
-```
-SetNoKill changes the default behavior of the MemoryGuard, to not kill the
-process if it exceeds the specified limit.
-
-
-
-
-### <a name="MemoryGuard.StatsFrequency">func</a> (\*MemoryGuard) [StatsFrequency](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1772:1828#L61)
-``` go
-func (m *MemoryGuard) StatsFrequency(freq time.Duration)
-```
-StatsFrequency updates the internal frequency to which statistics are emitted to
-the debug logger. Default is 1 minute.
 
 
 

@@ -4,6 +4,7 @@ go 1.24.6
 
 require (
 	github.com/cognusion/go-humanity v1.3.0
+	github.com/fortytw2/leaktest v1.3.0
 	github.com/smartystreets/goconvey v1.8.1
 )
 

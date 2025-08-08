@@ -1,22 +1,25 @@
 // Package memoryguard is a system to track the PSS memory usage of an os.Process
-// and kill it if the usage exceeds the stated Limit. Limits may be cancelled and
-// new Limits estabilished.
+// and kill it if the usage exceeds the stated Limit.
 package memoryguard
 
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cognusion/go-humanity"
 )
 
-// MemoryGuard is our encapsulating mechanation, and should only be acquired via a New helper
+// MemoryGuard is our encapsulating mechanation, and should only be acquired via a New helper.
+// Member functions are goro-safe, but all struct attributes should be set immediatelyish after New(),
+// and before Limit() is called.
 type MemoryGuard struct {
 	// Name is a name to use in lieu of PID for messaging
 	Name string
@@ -28,38 +31,32 @@ type MemoryGuard struct {
 	ErrOut *log.Logger
 	// KillChan will be closed if/when the process is killed
 	KillChan chan struct{}
+	// StatsFrequency updates the internal frequency to which statistics are emitted to the debug logger. Default is 1 minute.
+	StatsFrequency time.Duration
 
-	cancelled      chan bool
-	nokill         bool // true if the process should not be killed in overmemory cases
-	running        atomic.Bool
-	proc           *os.Process
-	lastPss        atomic.Int64
-	statsFrequency time.Duration
+	cancelled chan bool
+	nokill    bool        // Internal: true if the process should not be killed in overmemory cases
+	running   atomic.Bool // Internal: true if the Limit goro is running.
+	proc      *os.Process
+	limit     atomic.Int64
+	lastPss   atomic.Int64
+	limiter   func()
 }
 
 // New takes an os.Process and returns a MemoryGuard for that process
 func New(Process *os.Process) *MemoryGuard {
-	return &MemoryGuard{
+	var mg = MemoryGuard{
 		proc:           Process,
 		Interval:       1 * time.Second,
 		KillChan:       make(chan struct{}),
 		cancelled:      make(chan bool, 1),
 		DebugOut:       log.New(io.Discard, "", 0),
 		ErrOut:         log.New(io.Discard, "", 0),
-		statsFrequency: time.Minute,
+		StatsFrequency: time.Minute,
 	}
-}
+	mg.limiter = sync.OnceFunc(mg.onceLimit)
 
-// SetNoKill changes the default behavior of the MemoryGuard, to not kill the
-// process if it exceeds the specified limit.
-func (m *MemoryGuard) SetNoKill() {
-	m.nokill = true
-}
-
-// StatsFrequency updates the internal frequency to which statistics are emitted to
-// the debug logger. Default is 1 minute.
-func (m *MemoryGuard) StatsFrequency(freq time.Duration) {
-	m.statsFrequency = freq
+	return &mg
 }
 
 // PSS returns the last known PSS value for the watched process,
@@ -75,7 +72,7 @@ func (m *MemoryGuard) PSS() int64 {
 	return pss
 }
 
-// Cancel stops any Limit() operations.
+// Cancel signals a Limit() operation to stop, returning immediately.
 // After calling Cancel this MemoryGuard will be non-functional
 func (m *MemoryGuard) Cancel() {
 	select {
@@ -86,67 +83,102 @@ func (m *MemoryGuard) Cancel() {
 	}
 }
 
-// Limit takes the max usage (in Bytes) for the process and acts on the PSS. Call only once.
-func (m *MemoryGuard) Limit(max int64) {
-	if m.running.Load() {
-		// *blinks*
+// CancelWait signals a Limit() operation to stop, and waits to return until it is done.
+// After calling CancelWait this MemoryGuard will be non-functional
+func (m *MemoryGuard) CancelWait() {
+
+	if !m.running.Load() {
+		// We are already stopped.
 		return
+	}
+
+	// Cancel, and poll until we're done.
+	m.Cancel()
+	for {
+		if !m.running.Load() {
+			return
+		}
+		time.Sleep(time.Millisecond) // too aggressive?
+	}
+
+}
+
+// Limit takes the max usage (in Bytes) for the process and acts on the PSS.
+// Returns an error if Limit was called previously, or is called with a zero or negative value.
+func (m *MemoryGuard) Limit(max int64) error {
+	if max <= 0 {
+		return errors.New("please call Limit(int64) with a value greater than zero")
+	} else if !m.limit.CompareAndSwap(0, max) {
+		return errors.New("Limit(int64) already called once")
 	}
 	m.running.Store(true)
 
-	go func() {
-		var (
-			name   string
-			errors int
-		)
-		if m.Name != "" {
-			name = m.Name
-		} else {
-			name = fmt.Sprintf("%d", m.proc.Pid)
-		}
+	go m.limiter()
 
-		since := time.Now()
-		for {
-			select {
-			case <-m.cancelled:
-				m.DebugOut.Printf("[%s] MemoryGuard Cancelled!\n", name)
-				return
-			case <-time.After(m.Interval):
-				// Go for it
-			}
+	return nil
+}
 
-			var (
-				xss int64
-				err error
-			)
-
-			xss, err = getPss(m.proc.Pid)
-			if err != nil {
-				errors++
-				m.ErrOut.Printf("[%s] MemoryGuard getPss Error: %s (%d)\n", name, err, errors)
-				continue
-			} else {
-				errors = 0 //reset
-				m.lastPss.Store(xss)
-			}
-
-			if xss > max {
-				m.ErrOut.Printf("[%s] MemoryGuard ALERT! %s Limit %s\n", name, humanity.ByteFormat(xss), humanity.ByteFormat(max))
-				close(m.KillChan)
-				if m.nokill {
-					// don't kill it
-				} else {
-					// kill it
-					m.proc.Kill()
-				}
-				return
-			} else if time.Since(since) >= m.statsFrequency {
-				// Belch out the stats every so often
-				since = time.Now()
-				m.DebugOut.Printf("[%s] MemoryGuard: %s Limit %s Consecutive errors: %d\n", name, humanity.ByteFormat(xss), humanity.ByteFormat(max), errors)
-			}
-		}
+func (m *MemoryGuard) onceLimit() {
+	defer func() {
+		m.DebugOut.Print("MemoryGuard Limiter Leaving!\n")
+		m.running.Store(false)
+		m.lastPss.Store(0) // can't say
 	}()
+
+	var (
+		name   string
+		errors int
+		max    = m.limit.Load()
+	)
+	if m.Name != "" {
+		name = m.Name
+	} else {
+		name = fmt.Sprintf("%d", m.proc.Pid)
+	}
+	m.DebugOut.Printf("[%s] MemoryGuard Running! %v\n", name, m)
+
+	since := time.Now()
+	for {
+		select {
+		case <-m.cancelled:
+			m.DebugOut.Printf("[%s] MemoryGuard Cancelled!\n", name)
+			return
+		case <-time.After(m.Interval):
+			// Go for it
+		}
+
+		var (
+			xss int64
+			err error
+		)
+
+		xss, err = getPss(m.proc.Pid)
+		if err != nil {
+			errors++
+			m.ErrOut.Printf("[%s] MemoryGuard getPss Error: %s (%d)\n", name, err, errors)
+			continue
+		} else {
+			errors = 0 //reset
+			m.lastPss.Store(xss)
+		}
+
+		if xss > max {
+			m.ErrOut.Printf("[%s] MemoryGuard ALERT! %s Limit %s\n", name, humanity.ByteFormat(xss), humanity.ByteFormat(max))
+			close(m.KillChan)
+			if m.nokill {
+				// don't kill it
+			} else {
+				// kill it
+				m.proc.Kill()
+			}
+			m.running.Store(false)
+			return
+		} else if time.Since(since) >= m.StatsFrequency {
+			// Belch out the stats every so often
+			since = time.Now()
+			m.DebugOut.Printf("[%s] MemoryGuard: %s Limit %s Consecutive errors: %d\n", name, humanity.ByteFormat(xss), humanity.ByteFormat(max), errors)
+		}
+	}
 }
 
 // getPss takes a pid, and returns the sum of PSS page sizes in Bytes, or an error
