@@ -15,6 +15,9 @@ and kill it if the usage exceeds the stated Limit.
 
 
 ## <a name="pkg-index">Index</a>
+* [Constants](#pkg-constants)
+* [type Error](#Error)
+  * [func (e Error) Error() string](#Error.Error)
 * [type MemoryGuard](#MemoryGuard)
   * [func New(Process *os.Process) *MemoryGuard](#New)
   * [func (m *MemoryGuard) Cancel()](#MemoryGuard.Cancel)
@@ -27,14 +30,49 @@ and kill it if the usage exceeds the stated Limit.
 * [MemoryGuard.CancelWait](#example-memoryguard_cancelwait)
 
 #### <a name="pkg-files">Package files</a>
-[athena.go](https://github.com/cognusion/go-memoryguard/tree/master/athena.go)
+[athena.go](https://github.com/cognusion/go-memoryguard/tree/master/athena.go) [errors.go](https://github.com/cognusion/go-memoryguard/tree/master/errors.go)
+
+
+## <a name="pkg-constants">Constants</a>
+``` go
+const (
+    // LimitZeroError is returned by Limit(int64) when the passed variable is <= 0.
+    LimitZeroError = Error("please call Limit(int64) with a value greater than zero")
+    // LimitNilProcessError is returned by Limit(int64) when the referenced *os.Process is nil.
+    LimitNilProcessError = Error("a Process has not been created and assigned, or is nil")
+    // LimitOnceError is returned by Limit(int64) if it has been called without error previously.
+    LimitOnceError = Error("Limit(int64) already called once")
+)
+```
+
+
+
+
+## <a name="Error">type</a> [Error](https://github.com/cognusion/go-memoryguard/tree/master/errors.go?s=558:575#L13)
+``` go
+type Error string
+```
+Error is an error type
 
 
 
 
 
 
-## <a name="MemoryGuard">type</a> [MemoryGuard](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=522:1364#L23)
+
+
+
+
+### <a name="Error.Error">func</a> (Error) [Error](https://github.com/cognusion/go-memoryguard/tree/master/errors.go?s=627:656#L16)
+``` go
+func (e Error) Error() string
+```
+Error returns the stringified version of Error
+
+
+
+
+## <a name="MemoryGuard">type</a> [MemoryGuard](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=512:1354#L22)
 ``` go
 type MemoryGuard struct {
     // Name is a name to use in lieu of PID for messaging
@@ -80,7 +118,7 @@ mg.Cancel()
 
 
 
-### <a name="New">func</a> [New](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1436:1478#L47)
+### <a name="New">func</a> [New](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1426:1468#L46)
 ``` go
 func New(Process *os.Process) *MemoryGuard
 ```
@@ -90,7 +128,7 @@ New takes an os.Process and returns a MemoryGuard for that process
 
 
 
-### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2244:2274#L77)
+### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2234:2264#L76)
 ``` go
 func (m *MemoryGuard) Cancel()
 ```
@@ -100,7 +138,7 @@ After calling Cancel this MemoryGuard will be non-functional
 
 
 
-### <a name="MemoryGuard.CancelWait">func</a> (\*MemoryGuard) [CancelWait](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2526:2560#L88)
+### <a name="MemoryGuard.CancelWait">func</a> (\*MemoryGuard) [CancelWait](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2516:2550#L87)
 ``` go
 func (m *MemoryGuard) CancelWait()
 ```
@@ -127,17 +165,19 @@ mg.CancelWait()
 
 
 
-### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2957:3001#L108)
+### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=3038:3082#L109)
 ``` go
 func (m *MemoryGuard) Limit(max int64) error
 ```
 Limit takes the max usage (in Bytes) for the process and acts on the PSS.
-Returns an error if Limit was called previously, or is called with a zero or negative value.
+Returns an error if Limit is called with a zero or negative value,
+with a nil Process reference (did you use New()?),
+or if it has already been called once before, successfully.
 
 
 
 
-### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1944:1977#L64)
+### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1934:1967#L63)
 ``` go
 func (m *MemoryGuard) PSS() int64
 ```

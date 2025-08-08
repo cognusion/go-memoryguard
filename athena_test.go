@@ -77,7 +77,7 @@ func Test_MemoryGuardOnUsPSS(t *testing.T) {
 		})
 
 		Convey("if we call Limit() again it refuses", func() {
-			So(mg.Limit(400*1024*1024), ShouldBeError)
+			So(mg.Limit(400*1024*1024), ShouldEqual, LimitOnceError)
 		})
 	})
 }
@@ -89,7 +89,7 @@ func Test_MemoryGuardLimitZero(t *testing.T) {
 		us, _ := os.FindProcess(os.Getpid())
 		mg := New(us)
 		mg.Name = "bob"
-		So(mg.Limit(0), ShouldBeError)
+		So(mg.Limit(0), ShouldEqual, LimitZeroError)
 	})
 }
 
@@ -169,6 +169,18 @@ func Test_MemoryGuardGetPssBadPid(t *testing.T) {
 			So(mg.running.Load(), ShouldBeTrue)
 			So(mg.PSS(), ShouldEqual, 0)
 		})
+	})
+}
+
+func Test_MemoryGuardNilProcess(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	Convey("When a MemoryGuard is running on us", t, func() {
+		us, _ := os.FindProcess(os.Getpid())
+		mg := New(us)
+		mg.proc = nil // break it!
+		So(mg.Limit(400*1024*1024), ShouldEqual, LimitNilProcessError)
+		So(mg.Limit(30).Error(), ShouldEqual, LimitNilProcessError.Error())
 	})
 }
 

@@ -5,7 +5,6 @@ package memoryguard
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -104,12 +103,16 @@ func (m *MemoryGuard) CancelWait() {
 }
 
 // Limit takes the max usage (in Bytes) for the process and acts on the PSS.
-// Returns an error if Limit was called previously, or is called with a zero or negative value.
+// Returns an error if Limit is called with a zero or negative value,
+// with a nil Process reference (did you use New()?),
+// or if it has already been called once before, successfully.
 func (m *MemoryGuard) Limit(max int64) error {
 	if max <= 0 {
-		return errors.New("please call Limit(int64) with a value greater than zero")
+		return LimitZeroError
+	} else if m.proc == nil {
+		return LimitNilProcessError
 	} else if !m.limit.CompareAndSwap(0, max) {
-		return errors.New("Limit(int64) already called once")
+		return LimitOnceError
 	}
 	m.running.Store(true)
 
@@ -126,14 +129,12 @@ func (m *MemoryGuard) onceLimit() {
 	}()
 
 	var (
-		name   string
+		name   = m.Name
+		max    = m.limit.Load() // it should be impossible for this to be <= 0.
 		errors int
-		max    = m.limit.Load()
 	)
-	if m.Name != "" {
-		name = m.Name
-	} else {
-		name = fmt.Sprintf("%d", m.proc.Pid)
+	if name == "" {
+		name = fmt.Sprintf("%d", m.proc.Pid) // if proc hasn't been assigned, we panic here.
 	}
 	m.DebugOut.Printf("[%s] MemoryGuard Running! %v\n", name, m)
 
