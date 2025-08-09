@@ -59,7 +59,9 @@ func New(Process *os.Process) *MemoryGuard {
 }
 
 // PSS returns the last known PSS value for the watched process,
-// or the current value, if there was no last value
+// or the current value, if there was no last value. After a process is
+// killed for going over, this will be the last value observed prior to
+// process death.
 func (m *MemoryGuard) PSS() int64 {
 	if lp := m.lastPss.Load(); lp > 0 {
 		return lp
@@ -125,7 +127,6 @@ func (m *MemoryGuard) onceLimit() {
 	defer func() {
 		m.DebugOut.Print("MemoryGuard Limiter Leaving!\n")
 		m.running.Store(false)
-		m.lastPss.Store(0) // can't say
 	}()
 
 	var (

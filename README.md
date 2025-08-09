@@ -128,7 +128,7 @@ New takes an os.Process and returns a MemoryGuard for that process
 
 
 
-### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2234:2264#L76)
+### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2344:2374#L78)
 ``` go
 func (m *MemoryGuard) Cancel()
 ```
@@ -138,7 +138,7 @@ After calling Cancel this MemoryGuard will be non-functional
 
 
 
-### <a name="MemoryGuard.CancelWait">func</a> (\*MemoryGuard) [CancelWait](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2516:2550#L87)
+### <a name="MemoryGuard.CancelWait">func</a> (\*MemoryGuard) [CancelWait](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2626:2660#L89)
 ``` go
 func (m *MemoryGuard) CancelWait()
 ```
@@ -165,7 +165,7 @@ mg.CancelWait()
 
 
 
-### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=3038:3082#L109)
+### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=3148:3192#L111)
 ``` go
 func (m *MemoryGuard) Limit(max int64) error
 ```
@@ -177,12 +177,14 @@ or if it has already been called once before, successfully.
 
 
 
-### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1934:1967#L63)
+### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2044:2077#L65)
 ``` go
 func (m *MemoryGuard) PSS() int64
 ```
 PSS returns the last known PSS value for the watched process,
-or the current value, if there was no last value
+or the current value, if there was no last value. After a process is
+killed for going over, this will be the last value observed prior to
+process death.
 
 
 

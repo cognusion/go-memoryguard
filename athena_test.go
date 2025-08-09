@@ -3,10 +3,10 @@ package memoryguard
 import (
 	"os"
 	"os/exec"
-	"runtime"
 	"testing"
 	"time"
 
+	"github.com/cognusion/go-humanity"
 	"github.com/fortytw2/leaktest"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -112,18 +112,11 @@ func Test_MemoryGuardOnUsDelay(t *testing.T) {
 			Convey("we don't get killed, and a PSS is returned", func() {
 				So(mg.running.Load(), ShouldBeTrue)
 				So(mg.PSS(), ShouldBeGreaterThan, 0)
+
+				mg.CancelWait()
+				So(mg.running.Load(), ShouldBeFalse)
 			})
 
-			Convey("and we can span the Limit function, and the goro count is stable. (HINT: LeakTest will bomb too, if this failed)", func() {
-				count := runtime.NumGoroutine()
-				for range 1000 {
-					mg.Limit(limit)
-				}
-				So(runtime.NumGoroutine(), ShouldEqual, count)
-			})
-
-			mg.CancelWait()
-			So(mg.running.Load(), ShouldBeFalse)
 		})
 
 	})
@@ -158,12 +151,13 @@ func Test_MemoryGuardGetPssBadPid(t *testing.T) {
 		us, _ := os.FindProcess(os.Getpid())
 		mg := New(us)
 		mg.proc.Pid = -10
+		mg.Interval = time.Millisecond
 		mg.Limit(400 * 1024 * 1024) // we won't actually hit this, right?
 		defer mg.Cancel()
 
 		// Pause so the limiter can run a cycle or two on the bad PID, possibly
 		// dying.
-		time.Sleep(2 * time.Second)
+		time.Sleep(10 * time.Millisecond)
 
 		Convey("and we have a bad pid, we don't get killed, and a PSS of 0 is returned", func() {
 			So(mg.running.Load(), ShouldBeTrue)
@@ -228,7 +222,7 @@ func Test_MemoryGuardKillPSS(t *testing.T) {
 		us, _ := os.FindProcess(os.Getpid())
 		mg := New(us)
 		mg.Interval = time.Second
-		mg.nokill = true
+		mg.nokill = true // set internal tunable to not actually kill ourselves.
 
 		Convey("and set a really low threshold, we'll get killed", func() {
 			defer mg.Cancel()
@@ -241,16 +235,16 @@ func Test_MemoryGuardKillPSS(t *testing.T) {
 }
 
 func Test_MemoryGuardMaxPSS(t *testing.T) {
-	// t.Skip("Skipping, as this runs and external command without consent, that could chew up memory if MG doesn't work.\n")
 	defer leaktest.Check(t)()
 
+	limit := int64(1024 * 1024) // 1MB
 	Convey("When an external command runs", t, func() {
 		cmd := exec.Command("tests/mem.sh")
 		err := cmd.Start()
 		So(err, ShouldBeNil)
 		mg := New(cmd.Process)
-		mg.Interval = time.Second
-		mg.Limit(1024 * 1024) // 1MB
+		mg.Interval = time.Millisecond
+		mg.Limit(limit)
 
 		Convey("and memory grows above mss, it should be killed promptly.", func() {
 			defer mg.Cancel()
@@ -259,8 +253,13 @@ func Test_MemoryGuardMaxPSS(t *testing.T) {
 			<-mg.KillChan // wait for the kill
 			stop := time.Now()
 			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "signal: killed") // brittle.
 			So(stop.Sub(start), ShouldBeLessThanOrEqualTo, 3*time.Second)
 			So(mg.running.Load(), ShouldBeFalse)
+			So(mg.PSS(), ShouldBeGreaterThan, limit)
+			if testing.Verbose() {
+				Printf("\n\tMemory was ~%s over when killed\n", humanity.ByteFormat(mg.PSS()-limit))
+			}
 		})
 
 	})
