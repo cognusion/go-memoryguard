@@ -30,6 +30,8 @@ type MemoryGuard struct {
 	ErrOut *log.Logger
 	// KillChan will be closed if/when the process is killed
 	KillChan chan struct{}
+	// KillError will be any error returned by the "Kill" operation. Varies widely by OS. Usually nil.
+	KillError error
 	// StatsFrequency updates the internal frequency to which statistics are emitted to the debug logger. Default is 1 minute.
 	StatsFrequency time.Duration
 
@@ -171,7 +173,7 @@ func (m *MemoryGuard) onceLimit() {
 				// don't kill it
 			} else {
 				// kill it
-				m.proc.Kill()
+				m.KillError = m.proc.Kill()
 			}
 			m.running.Store(false)
 			return

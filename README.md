@@ -72,7 +72,7 @@ Error returns the stringified version of Error
 
 
 
-## <a name="MemoryGuard">type</a> [MemoryGuard](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=512:1354#L22)
+## <a name="MemoryGuard">type</a> [MemoryGuard](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=512:1471#L22)
 ``` go
 type MemoryGuard struct {
     // Name is a name to use in lieu of PID for messaging
@@ -85,6 +85,8 @@ type MemoryGuard struct {
     ErrOut *log.Logger
     // KillChan will be closed if/when the process is killed
     KillChan chan struct{}
+    // KillError will be any error returned by the "Kill" operation. Varies widely by OS. Usually nil.
+    KillError error
     // StatsFrequency updates the internal frequency to which statistics are emitted to the debug logger. Default is 1 minute.
     StatsFrequency time.Duration
     // contains filtered or unexported fields
@@ -118,7 +120,7 @@ mg.Cancel()
 
 
 
-### <a name="New">func</a> [New](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1426:1468#L46)
+### <a name="New">func</a> [New](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=1543:1585#L48)
 ``` go
 func New(Process *os.Process) *MemoryGuard
 ```
@@ -128,7 +130,7 @@ New takes an os.Process and returns a MemoryGuard for that process
 
 
 
-### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2344:2374#L78)
+### <a name="MemoryGuard.Cancel">func</a> (\*MemoryGuard) [Cancel](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2461:2491#L80)
 ``` go
 func (m *MemoryGuard) Cancel()
 ```
@@ -138,7 +140,7 @@ After calling Cancel this MemoryGuard will be non-functional
 
 
 
-### <a name="MemoryGuard.CancelWait">func</a> (\*MemoryGuard) [CancelWait](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2626:2660#L89)
+### <a name="MemoryGuard.CancelWait">func</a> (\*MemoryGuard) [CancelWait](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2743:2777#L91)
 ``` go
 func (m *MemoryGuard) CancelWait()
 ```
@@ -165,7 +167,7 @@ mg.CancelWait()
 
 
 
-### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=3148:3192#L111)
+### <a name="MemoryGuard.Limit">func</a> (\*MemoryGuard) [Limit](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=3265:3309#L113)
 ``` go
 func (m *MemoryGuard) Limit(max int64) error
 ```
@@ -177,7 +179,7 @@ or if it has already been called once before, successfully.
 
 
 
-### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2044:2077#L65)
+### <a name="MemoryGuard.PSS">func</a> (\*MemoryGuard) [PSS](https://github.com/cognusion/go-memoryguard/tree/master/athena.go?s=2161:2194#L67)
 ``` go
 func (m *MemoryGuard) PSS() int64
 ```

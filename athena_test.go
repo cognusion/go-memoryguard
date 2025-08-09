@@ -57,6 +57,7 @@ func Test_MemoryGuardOnUsPSSRapid(t *testing.T) {
 				So(mg.PSS(), ShouldBeGreaterThan, 0)
 			}
 			So(mg.running.Load(), ShouldBeTrue)
+			So(mg.KillError, ShouldBeNil)
 		})
 	})
 }
@@ -74,6 +75,7 @@ func Test_MemoryGuardOnUsPSS(t *testing.T) {
 		Convey("we don't get killed, and a PSS is returned", func() {
 			So(mg.running.Load(), ShouldBeTrue)
 			So(mg.PSS(), ShouldBeGreaterThan, 0)
+			So(mg.KillError, ShouldBeNil)
 		})
 
 		Convey("if we call Limit() again it refuses", func() {
@@ -115,6 +117,7 @@ func Test_MemoryGuardOnUsDelay(t *testing.T) {
 
 				mg.CancelWait()
 				So(mg.running.Load(), ShouldBeFalse)
+				So(mg.KillError, ShouldBeNil)
 			})
 
 		})
@@ -162,6 +165,7 @@ func Test_MemoryGuardGetPssBadPid(t *testing.T) {
 		Convey("and we have a bad pid, we don't get killed, and a PSS of 0 is returned", func() {
 			So(mg.running.Load(), ShouldBeTrue)
 			So(mg.PSS(), ShouldEqual, 0)
+			So(mg.KillError, ShouldBeNil)
 		})
 	})
 }
@@ -193,6 +197,7 @@ func Test_MemoryGuardCancelSpam(t *testing.T) {
 			}
 			mg.CancelWait() // for latency
 			So(mg.running.Load(), ShouldBeFalse)
+			So(mg.KillError, ShouldBeNil)
 		})
 	})
 }
@@ -211,6 +216,7 @@ func Test_MemoryGuardCancelWaitSpam(t *testing.T) {
 				mg.CancelWait()
 			}
 			So(mg.running.Load(), ShouldBeFalse)
+			So(mg.KillError, ShouldBeNil)
 		})
 	})
 }
@@ -230,6 +236,7 @@ func Test_MemoryGuardKillPSS(t *testing.T) {
 
 			<-mg.KillChan // wait for the kill
 			So(mg.running.Load(), ShouldBeFalse)
+			So(mg.KillError, ShouldBeNil)
 		})
 	})
 }
@@ -257,6 +264,7 @@ func Test_MemoryGuardMaxPSS(t *testing.T) {
 			So(stop.Sub(start), ShouldBeLessThanOrEqualTo, 3*time.Second)
 			So(mg.running.Load(), ShouldBeFalse)
 			So(mg.PSS(), ShouldBeGreaterThan, limit)
+			So(mg.KillError, ShouldBeNil)
 			if testing.Verbose() {
 				Printf("\n\tMemory was ~%s over when killed\n", humanity.ByteFormat(mg.PSS()-limit))
 			}
