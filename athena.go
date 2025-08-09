@@ -17,7 +17,7 @@ import (
 )
 
 // MemoryGuard is our encapsulating mechanation, and should only be acquired via a New helper.
-// Member functions are goro-safe, but all struct attributes should be set immediatelyish after New(),
+// Member functions are goro-safe, but all struct fields should be set immediatelyish after New(),
 // and before Limit() is called.
 type MemoryGuard struct {
 	// Name is a name to use in lieu of PID for messaging
