@@ -272,3 +272,39 @@ func Test_MemoryGuardMaxPSS(t *testing.T) {
 
 	})
 }
+
+func Benchmark_getpss(b *testing.B) {
+	pid := os.Getpid()
+
+	var (
+		pss int64
+		err error
+	)
+	for b.Loop() {
+		pss, err = getPss(pid)
+		if err != nil {
+			b.Fatalf("Error! %s!\n", err)
+		}
+		if pss <= 0 {
+			b.Fatalf("Error! Pss is %d!\n", pss)
+		}
+	}
+}
+
+func Benchmark_getpss2(b *testing.B) {
+	pid := os.Getpid()
+
+	var (
+		pss int64
+		err error
+	)
+	for b.Loop() {
+		pss, err = getPss2(pid)
+		if err != nil {
+			b.Fatalf("Error! %s!\n", err)
+		}
+		if pss <= 0 {
+			b.Fatalf("Error! Pss is %d!\n", pss)
+		}
+	}
+}

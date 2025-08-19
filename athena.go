@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -202,6 +203,38 @@ func getPss(pid int) (int64, error) {
 	for r.Scan() {
 		line := r.Bytes()
 		if bytes.HasPrefix(line, pfx) {
+			var size int64
+			_, err := fmt.Sscanf(string(line[4:]), "%d", &size)
+			if err != nil {
+				return 0, err
+			}
+			res += size
+		}
+	}
+	if err := r.Err(); err != nil {
+		return 0, err
+	}
+
+	return res * 1024, nil
+}
+
+// getPss2 uses strings instead of bytes. See benchmarks. Awful. Do not use.
+func getPss2(pid int) (int64, error) {
+	f, err := os.Open(fmt.Sprintf("/proc/%d/smaps", pid))
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	var (
+		res int64
+		pfx = "Pss:"
+	)
+
+	r := bufio.NewScanner(f)
+	for r.Scan() {
+		line := r.Text()
+		if strings.HasPrefix(line, pfx) {
 			var size int64
 			_, err := fmt.Sscanf(string(line[4:]), "%d", &size)
 			if err != nil {
