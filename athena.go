@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -187,6 +186,10 @@ func (m *MemoryGuard) onceLimit() {
 }
 
 // getPss takes a pid, and returns the sum of PSS page sizes in Bytes, or an error
+//
+// Benchmark_getpss-12        	    2278	    490040 ns/op	   13039 B/op	     382 allocs/op
+// Benchmark_getpss2-12       	    2190	    524059 ns/op	   84773 B/op	    2543 allocs/op
+// Benchmark_getUtilPss-12    	    1279	   1179068 ns/op	  681705 B/op	    4535 allocs/op
 func getPss(pid int) (int64, error) {
 	f, err := os.Open(fmt.Sprintf("/proc/%d/smaps", pid))
 	if err != nil {
@@ -203,38 +206,6 @@ func getPss(pid int) (int64, error) {
 	for r.Scan() {
 		line := r.Bytes()
 		if bytes.HasPrefix(line, pfx) {
-			var size int64
-			_, err := fmt.Sscanf(string(line[4:]), "%d", &size)
-			if err != nil {
-				return 0, err
-			}
-			res += size
-		}
-	}
-	if err := r.Err(); err != nil {
-		return 0, err
-	}
-
-	return res * 1024, nil
-}
-
-// getPss2 uses strings instead of bytes. See benchmarks. Awful. Do not use.
-func getPss2(pid int) (int64, error) {
-	f, err := os.Open(fmt.Sprintf("/proc/%d/smaps", pid))
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-
-	var (
-		res int64
-		pfx = "Pss:"
-	)
-
-	r := bufio.NewScanner(f)
-	for r.Scan() {
-		line := r.Text()
-		if strings.HasPrefix(line, pfx) {
 			var size int64
 			_, err := fmt.Sscanf(string(line[4:]), "%d", &size)
 			if err != nil {

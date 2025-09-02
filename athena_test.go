@@ -1,13 +1,17 @@
 package memoryguard
 
 import (
+	"bufio"
+	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/cognusion/go-humanity"
 	"github.com/fortytw2/leaktest"
+	"github.com/shirou/gopsutil/v4/process"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -273,6 +277,33 @@ func Test_MemoryGuardMaxPSS(t *testing.T) {
 	})
 }
 
+func Test_GetPSS_Pseudoequality(t *testing.T) {
+	t.Skip("gopsutil PSS calculations are always way higher.")
+
+	pid := os.Getpid()
+	ps, psE := process.NewProcess(int32(pid))
+	if psE != nil {
+		t.Fatalf("Cannot create psutil Process: %s\n", psE)
+	}
+
+	var okDelta = 50 * 1024 // +/- 50k deviation
+
+	Convey("", t, FailureContinues, func() {
+		pss, pssErr := getPss(pid)
+
+		pss2, pss2Err := getPss2(pid)
+
+		uPss, uPssErr := getUtilPss(ps)
+
+		So(pssErr, ShouldBeNil)
+		So(pss2Err, ShouldBeNil)
+		So(uPssErr, ShouldBeNil)
+
+		SoMsg("PSS and PSS2 are too different", pss, ShouldAlmostEqual, pss2, okDelta)
+		SoMsg("PSS and uPSS are too different", pss, ShouldAlmostEqual, uPss, okDelta)
+	})
+}
+
 func Benchmark_getpss(b *testing.B) {
 	pid := os.Getpid()
 
@@ -307,4 +338,72 @@ func Benchmark_getpss2(b *testing.B) {
 			b.Fatalf("Error! Pss is %d!\n", pss)
 		}
 	}
+}
+
+func Benchmark_getUtilPss(b *testing.B) {
+	pid := os.Getpid()
+	ps, e := process.NewProcess(int32(pid))
+	if e != nil {
+		b.Fatalf("Cannot create psutil Process: %s\n", e)
+	}
+
+	var (
+		pss uint64
+		err error
+	)
+	b.ResetTimer()
+	for b.Loop() {
+		pss, err = getUtilPss(ps)
+		if err != nil {
+			b.Fatalf("Error! %s!\n", err)
+		}
+		if pss <= 0 {
+			b.Fatalf("Error! Pss is %d!\n", pss)
+		}
+	}
+}
+
+// getUtilPss uses gopsutil instead of raw calculations. See benchmarks. Most awful. Do not use.
+func getUtilPss(ps *process.Process) (uint64, error) {
+	var pss uint64
+	maps, err := ps.MemoryMaps(false)
+	if err != nil {
+		return 0, err
+	}
+	for _, m := range *maps {
+		pss += m.Pss
+	}
+	return pss * 1024, nil
+}
+
+// getPss2 uses strings instead of bytes. See benchmarks. Awful. Do not use.
+func getPss2(pid int) (int64, error) {
+	f, err := os.Open(fmt.Sprintf("/proc/%d/smaps", pid))
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	var (
+		res int64
+		pfx = "Pss:"
+	)
+
+	r := bufio.NewScanner(f)
+	for r.Scan() {
+		line := r.Text()
+		if strings.HasPrefix(line, pfx) {
+			var size int64
+			_, err := fmt.Sscanf(string(line[4:]), "%d", &size)
+			if err != nil {
+				return 0, err
+			}
+			res += size
+		}
+	}
+	if err := r.Err(); err != nil {
+		return 0, err
+	}
+
+	return res * 1024, nil
 }
